@@ -1,5 +1,10 @@
 # fatBPE python wrapper
 
+```bash
+    # compile without python wrapper
+    g++ -std=c++11 -pthread -O3 fast.cpp -o fast
+```
+
 ## Requirements
 
 -   [Boost==1.69](http://www.boost.org/)

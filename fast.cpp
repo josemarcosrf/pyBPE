@@ -20,7 +20,10 @@
 
 using namespace std;
 
-typedef vector< tuple<string, int> > wCounts;
+typedef vector< tuple<string, uint32_t> > wCounts;
+typedef unordered_map<string, uint32_t> wMapCounts;
+typedef tuple<string, string, uint32_t> triplet;
+typedef vector< triplet > tripletVec;
 
 const size_t kMaxPairs = 1000 * 1000 * 1000;
 const size_t kThreads = max(1, min(10, int(thread::hardware_concurrency())));
@@ -41,11 +44,20 @@ void printUsage() {
       << endl;
 }
 
-void print_word_count(const wCounts wc) {
+void print_word_count(const wCounts &wc) {
   cout << "\nWord -> Counts" << endl;
   cout << "--------------" << endl;
   for (wCounts::const_iterator i = wc.begin(); i != wc.end(); ++i) {
         cout << get<0>(*i) << " -> " << get<1>(*i) << endl;
+  }
+  cout << "--------------" << endl;
+}
+
+void print_word_map_count(const wMapCounts &wmc) {
+  cout << "\nWord -> Counts" << endl;
+  cout << "--------------" << endl;
+  for (auto x: wmc) {
+        cout << x.first << " -> " << x.second << endl;
   }
   cout << "--------------" << endl;
 }
@@ -59,7 +71,7 @@ int safeOpen(const char *file_path, int flags, mode_t mode = 0) {
   return fd;
 }
 
-void readText(const char *fp, unordered_map<string, uint32_t> &word_count) {
+void readText(const char *fp, wMapCounts &word_count) {
   string cur_word;
   uint64_t total = 0;
   auto deal_with_char = [&](char cur_char){
@@ -103,7 +115,7 @@ void readText(const char *fp, unordered_map<string, uint32_t> &word_count) {
           word_count.size());
 }
 
-void readString(string text, unordered_map<string, uint32_t> &word_count) {
+void readString(const string &text, wMapCounts &word_count) {
   string cur_word;
   uint64_t total = 0;
   auto deal_with_char = [&](char cur_char){
@@ -121,9 +133,10 @@ void readString(string text, unordered_map<string, uint32_t> &word_count) {
     }
   };
 
-  for (int i = 0; i < text.length(); i++) {
+  for (int i = 0; i < text.length() ; i++) {
     deal_with_char(text[i]);
   }
+  deal_with_char(' ');  // here just to make sure the last word is appended
 
   fprintf(stderr, "Read %lu words (%lu unique) from string.\n", total,
           word_count.size());
@@ -208,8 +221,8 @@ struct pair_hash {
   }
 };
 
-void tokenize(const unordered_map<string, uint32_t> &word_count,
-              unordered_map<string, uint32_t> &token_to_int,
+void tokenize(const wMapCounts &word_count,
+              wMapCounts &token_to_int,
               vector<string> &int_to_token, vector<list<uint32_t>> &words,
               vector<int32_t> &counts) {
 
@@ -246,7 +259,7 @@ void tokenize(const unordered_map<string, uint32_t> &word_count,
   }
 }
 
-void tokenize_str(const unordered_map<string, uint32_t> &word_count,
+void tokenize_str(const wMapCounts &word_count,
                   unordered_map<string, vector<string>> &words) {
 
   for (auto &x : word_count) {
@@ -322,7 +335,7 @@ void find_maxp(vector<pair<int32_t, tp>> &contiguous_counts, tp &maxp,
 
 void getvocab(const char *inputFile1, const char *inputFile2) {
   // get vocab
-  unordered_map<string, uint32_t> word_count;
+  wMapCounts word_count;
   readText(inputFile1, word_count);
   if (inputFile2 != "") {
     readText(inputFile2, word_count);
@@ -343,40 +356,34 @@ void getvocab(const char *inputFile1, const char *inputFile2) {
 }
 
 
-wCounts getvocabs(const string text) {
+wMapCounts getvocabs(const string &text) {
   // get vocab
-  unordered_map<string, uint32_t> word_count;
+  wMapCounts word_count;
   readString(text, word_count);
 
-  // sort vocab
-  auto compFunctor = [](pair<string, int> elem1, pair<string, int> elem2) {
-    return elem1.second > elem2.second ||
-           (elem1.second == elem2.second && elem1.first < elem2.first);
-  };
-  set<pair<string, int>, decltype(compFunctor)> sorted_vocab(
-      word_count.begin(), word_count.end(), compFunctor);
-  assert(word_count.size() == sorted_vocab.size());
+  return word_count;
 
-  // print sorted vocab
-  wCounts counts;
-  for (auto element : sorted_vocab) {
-    // cout << element.first << " " << element.second << endl;
-    counts.push_back(tuple<string, int>(element.first, element.second) );
-  }
-  return counts;
+  // // sort vocab
+  // auto compFunctor = [](pair<string, int> elem1, pair<string, int> elem2) {
+  //   return elem1.second > elem2.second ||
+  //          (elem1.second == elem2.second && elem1.first < elem2.first);
+  // };
+  // set<pair<string, int>, decltype(compFunctor)> sorted_vocab(
+  //     word_count.begin(), word_count.end(), compFunctor);
+  // assert(word_count.size() == sorted_vocab.size());
+
+  // // print sorted vocab
+  // wCounts counts;
+  // for (auto element : sorted_vocab) {
+  //   // cout << element.first << " " << element.second << endl;
+  //   counts.push_back(tuple<string, int>(element.first, element.second) );
+  // }
+  // return counts;
 }
 
-void learnbpe(const uint32_t kNPairs, const char *inputFile1,
-              const char *inputFile2) {
-  // get vocab
-  unordered_map<string, uint32_t> word_count;
-  readText(inputFile1, word_count);
-  if (inputFile2 != "") {
-    readText(inputFile2, word_count);
-  }
-
+tripletVec _learnbpe(const uint32_t kNPairs, const wMapCounts &word_count, bool print = false){
   // a token is an int, it represents a string
-  unordered_map<string, uint32_t> token_to_int;
+  wMapCounts token_to_int;
   vector<string> int_to_token;
 
   vector<list<uint32_t>> words;
@@ -394,15 +401,21 @@ void learnbpe(const uint32_t kNPairs, const char *inputFile1,
   uint32_t max_c = 0;
   tp max_p;
   for (uint32_t wi = 0; wi < words.size(); wi++) {
-    count_in_word(words[wi], wi, counts[wi], pair_counts, contiguous_counts,
-                  where_to_update);
+    count_in_word(words[wi], wi, counts[wi], pair_counts,
+                  contiguous_counts, where_to_update);
   }
   find_maxp(contiguous_counts, max_p, max_c);
+
+  tripletVec codes;
   for (int i = 0; i < kNPairs; i++) {
     // create new token for pair. replace
     auto new_token = int_to_token[max_p.first] + int_to_token[max_p.second];
-    cout << int_to_token[max_p.first] << " " << int_to_token[max_p.second]
-         << " " << max_c << endl;
+
+    codes.push_back(triplet(int_to_token[max_p.first], int_to_token[max_p.second], max_c));
+
+    if (print)
+      cout << int_to_token[max_p.first] << " " << int_to_token[max_p.second]
+           << " " << max_c << endl;
 
     uint32_t new_token_id = int_to_token.size();
     int_to_token.push_back(new_token);
@@ -473,6 +486,24 @@ void learnbpe(const uint32_t kNPairs, const char *inputFile1,
     }
     find_maxp(contiguous_counts, max_p, max_c);
   }
+  return codes;
+}
+
+void learnbpe(const uint32_t kNPairs, const char *inputFile1,
+              const char *inputFile2) {
+  // get vocab
+  wMapCounts word_count;
+  readText(inputFile1, word_count);
+  if (inputFile2 != "") {
+    readText(inputFile2, word_count);
+  }
+  _learnbpe(kNPairs, word_count, true);
+}
+
+tripletVec learnbpes(const uint32_t kNPairs, const string text) {
+  wMapCounts word_count = getvocabs(text);
+  tripletVec codes = _learnbpe(kNPairs, word_count);
+  return codes;
 }
 
 void split(vector<string> &splits, const string &text, char sep) {
@@ -486,7 +517,7 @@ void split(vector<string> &splits, const string &text, char sep) {
     splits.push_back(text.substr(start));
 }
 
-void readVocab(const char *fp, unordered_map<string, uint32_t> &vocab) {
+void readVocab(const char *fp, wMapCounts &vocab) {
   ifstream file(fp);
   if (!file) {
     fprintf(stderr, "Cannot open vocabulary file %s\n", fp);
@@ -533,7 +564,7 @@ void readCodes(const char *fp, unordered_map<tps, uint32_t, pair_hash> &codes,
 
 void decompose(const string s, vector<string> &newSubwords,
                const unordered_map<string, tps> &reversed_codes,
-               const unordered_map<string, uint32_t> &vocab, bool isFinal) {
+               const wMapCounts &vocab, bool isFinal) {
   auto it = reversed_codes.find(s);
   if (it == reversed_codes.end()) {
     // TODO this whole block below is just some sanity check
@@ -570,7 +601,7 @@ void decompose(const string s, vector<string> &newSubwords,
 
 void limitVocab(const vector<string> &subwords, vector<string> &newSubwords,
                 const unordered_map<string, tps> &reversed_codes,
-                const unordered_map<string, uint32_t> &vocab) {
+                const wMapCounts &vocab) {
   string query;
   for (int i = 0; i < subwords.size(); i++) {
     bool isFinal = i == subwords.size() - 1;
@@ -591,7 +622,7 @@ void limitVocab(const vector<string> &subwords, vector<string> &newSubwords,
 string process_bpe(vector<string> &subwords,
                    unordered_map<tps, uint32_t, pair_hash> &codes,
                    unordered_map<string, tps> &reversed_codes,
-                   unordered_map<string, uint32_t> &vocab) {
+                   wMapCounts &vocab) {
   // merge subWords as much as possible
   vector<string> newSubwords;
   while (subwords.size() > 1) {
@@ -649,7 +680,7 @@ string process_bpe(vector<string> &subwords,
 void applybpe(const char *outputFile, const char *inputFile,
               const char *codesPath, const char *vocabPath) {
   // read vocabulary (to which we want to limit the output file)
-  unordered_map<string, uint32_t> vocab;
+  wMapCounts vocab;
   if (vocabPath != "") {
     readVocab(vocabPath, vocab);
   }
@@ -660,7 +691,7 @@ void applybpe(const char *outputFile, const char *inputFile,
   readCodes(codesPath, codes, reversed_codes);
 
   // read input file words
-  unordered_map<string, uint32_t> word_count;
+  wMapCounts word_count;
   readText(inputFile, word_count);
 
   // tokenize
@@ -723,21 +754,37 @@ int main(int argc, char **argv) {
     exit(EXIT_FAILURE);
   }
   string command = argv[1];
+
+
   if (command == "getvocabs") {
+    // get vocab from string
     assert(argc == 3);
-    wCounts c = getvocabs(argv[2]);
-    print_word_count(c);
+    // wCounts c = getvocabs(argv[2]);
+    // print_word_count(c);
+    wMapCounts c = getvocabs(argv[2]);
+    print_word_map_count(c);
   }
   else if (command == "getvocab") {
+    // get vocab from 1 or two files
     assert(argc == 3 || argc == 4);
     getvocab(argv[2], argc == 4 ? argv[3] : "");
-  } else if (command == "learnbpe") {
+  }
+  else if (command == "learnbpes") {
+    // learn BPE code from string
+    assert(argc == 4);
+    tripletVec codes = learnbpes(stoi(argv[2]), argv[3]);
+    for (tripletVec::const_iterator i = codes.begin(); i != codes.end(); ++i)
+        cout << get<0>(*i) << " " << get<1>(*i) << " " << get<2>(*i) << endl;
+  }
+  else if (command == "learnbpe") {
     assert(argc == 4 || argc == 5);
     learnbpe(stoi(argv[2]), argv[3], argc == 5 ? argv[4] : "");
-  } else if (command == "applybpe") {
+  }
+  else if (command == "applybpe") {
     assert(argc == 5 || argc == 6);
     applybpe(argv[2], argv[3], argv[4], argc == 6 ? argv[5] : "");
-  } else {
+  }
+  else {
     printUsage();
     exit(EXIT_FAILURE);
   }
