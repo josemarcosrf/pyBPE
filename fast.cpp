@@ -16,7 +16,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-// #include <boost/python.hpp>
 
 using namespace std;
 
@@ -360,25 +359,7 @@ wMapCounts getvocabs(const string &text) {
   // get vocab
   wMapCounts word_count;
   readString(text, word_count);
-
   return word_count;
-
-  // // sort vocab
-  // auto compFunctor = [](pair<string, int> elem1, pair<string, int> elem2) {
-  //   return elem1.second > elem2.second ||
-  //          (elem1.second == elem2.second && elem1.first < elem2.first);
-  // };
-  // set<pair<string, int>, decltype(compFunctor)> sorted_vocab(
-  //     word_count.begin(), word_count.end(), compFunctor);
-  // assert(word_count.size() == sorted_vocab.size());
-
-  // // print sorted vocab
-  // wCounts counts;
-  // for (auto element : sorted_vocab) {
-  //   // cout << element.first << " " << element.second << endl;
-  //   counts.push_back(tuple<string, int>(element.first, element.second) );
-  // }
-  // return counts;
 }
 
 tripletVec _learnbpe(const uint32_t kNPairs, const wMapCounts &word_count, bool print = false){
@@ -730,22 +711,29 @@ void applybpe(const char *outputFile, const char *inputFile,
 }
 
 
-// /*
-//     Required to expose the fucntions.
-//     macro Boost.Python provides to signify a Python extension module
-// */
-// #include <boost/python.hpp>
+/*
+    Required to expose the fucntions.
+    macro Boost.Python provides to signify a Python extension module
+*/
+#include <boost/python.hpp>
+namespace py = boost::python;       // this will allow to pass list between C++ and python
 
-// BOOST_PYTHON_MODULE(libbasic_text) {
-//     // An established convention for using boost.python.
-//     using namespace boost::python;
+py::dict get_vocabs(const string &text) {
+  wMapCounts word_count = getvocabs(text);
+  py::dict map;
+  for (auto x: word_count) {
+    map[x.first] = x.second;
+  }
+  return map;
+}
 
-//     // Expose the functions.
-//     def("getvocabs", getvocabs);
-//     def("getvocab", getvocab);
-//     def("learnbpe", learnbpe);
-//     def("applybpe", applybpe);
-// }
+BOOST_PYTHON_MODULE(libbasic_text) {
+    // An established convention for using boost.python.
+    using namespace boost::python;
+
+    // Expose the functions.
+    def("get_vocabs", get_vocabs);
+}
 
 
 int main(int argc, char **argv) {
