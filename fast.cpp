@@ -727,7 +727,7 @@ py::dict get_vocabs(const string &text) {
   return map;
 }
 
-BOOST_PYTHON_MODULE(libbasic_text) {
+BOOST_PYTHON_MODULE(libfast) {
     // An established convention for using boost.python.
     using namespace boost::python;
 
