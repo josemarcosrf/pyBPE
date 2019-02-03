@@ -1,8 +1,26 @@
-# fatBPE python wrapper
+# fastBPE python wrapper
 
-```bash
-    # compile without python wrapper
-    g++ -std=c++11 -pthread -O3 fast.cpp -o fast
+This repo it is based on [fastBPE](https://github.com/glample/fastBPE) modified to expose similar function working using input strings instead of files.
+
+More specifically exposes the following funtions:
+
+```python
+import libpybpe as bpe
+
+text = "This is a test sentence to test test"
+
+# get_vocabs: equivalent to getvocab
+print(bpe.get_vocabs(text))
+{'This': 1, 'a': 1, 'is': 1,
+ 'sentence': 1, 'test': 3, 'to': 1}
+
+# learn_bpe: equivalent to learnbpe
+print(bpe.learn_bpes(5, text))
+[('t', 'e', 4),
+ ('s', 't</w>', 3),
+ ('te', 'st</w>', 3),
+ ('i', 's</w>', 2),
+ ('t', 'o</w>', 1)]
 ```
 
 ## Requirements
@@ -11,9 +29,20 @@
 -   [CMake>=3.13](https://cmake.org/download/)
 -   g++ compiler (>=5.4.0)
 -   python (>=3.6)
--   [anaconda](https://www.continuum.io/downloads)
+-   [anaconda3](https://www.continuum.io/downloads)
 
 ## How to
+
+### C++
+
+To compile the code without the python wrapper:
+
+```bash
+    # compile without python wrapper
+    g++ -std=c++11 -pthread -O3 fast.cpp -o fast
+```
+
+### Python
 
 1. Download and install Boost
    (Here we assume we are using Anaconda in an environment called `testDL` with python 3.6)

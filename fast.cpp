@@ -56,7 +56,7 @@ void print_word_map_count(const wMapCounts &wmc) {
   cout << "\nWord -> Counts" << endl;
   cout << "--------------" << endl;
   for (auto x: wmc) {
-        cout << x.first << " -> " << x.second << endl;
+        cout << x.first << " " << x.second << endl;
   }
   cout << "--------------" << endl;
 }
@@ -712,7 +712,7 @@ void applybpe(const char *outputFile, const char *inputFile,
 
 
 /*
-    Required to expose the fucntions.
+    Required to expose the functions.
     macro Boost.Python provides to signify a Python extension module
 */
 #include <boost/python.hpp>
@@ -727,12 +727,22 @@ py::dict get_vocabs(const string &text) {
   return map;
 }
 
-BOOST_PYTHON_MODULE(libfast) {
+py::list learn_bpes(const uint32_t kNPairs, const string &text) {
+  tripletVec codes = learnbpes(kNPairs, text);
+  py::list pycodes;
+  for (tripletVec::const_iterator i = codes.begin(); i != codes.end(); ++i) {
+    pycodes.append(py::make_tuple(get<0>(*i), get<1>(*i), get<2>(*i)));
+  }
+  return pycodes;
+}
+
+BOOST_PYTHON_MODULE(libpybpe) {
     // An established convention for using boost.python.
     using namespace boost::python;
 
     // Expose the functions.
     def("get_vocabs", get_vocabs);
+    def("learn_bpes", learn_bpes);
 }
 
 
