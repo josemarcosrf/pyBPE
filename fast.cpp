@@ -44,21 +44,21 @@ void printUsage() {
 }
 
 void print_word_count(const wCounts &wc) {
-  cout << "\nWord -> Counts" << endl;
-  cout << "--------------" << endl;
+  fprintf(stderr, "\nWord Counts\n");
+  fprintf(stderr, "\n--------------\n");
   for (wCounts::const_iterator i = wc.begin(); i != wc.end(); ++i) {
-        cout << get<0>(*i) << " -> " << get<1>(*i) << endl;
+        cout << get<0>(*i) << " " << get<1>(*i) << endl;
   }
-  cout << "--------------" << endl;
+  fprintf(stderr, "\n--------------\n");
 }
 
 void print_word_map_count(const wMapCounts &wmc) {
-  cout << "\nWord -> Counts" << endl;
-  cout << "--------------" << endl;
+  fprintf(stderr, "\nWord Counts\n");
+  fprintf(stderr, "\n--------------\n");
   for (auto x: wmc) {
-        cout << x.first << " " << x.second << endl;
+    cout << x.first << " " << x.second << endl;
   }
-  cout << "--------------" << endl;
+  fprintf(stderr, "\n--------------\n");
 }
 
 int safeOpen(const char *file_path, int flags, mode_t mode = 0) {
