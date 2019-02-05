@@ -1,50 +1,46 @@
 # fastBPE python wrapper
 
-This is Python wrapper for a C++ implementation of:
+This is Python wrapper for a C++ implementation to produce BPE codes as explained in:
 [Neural Machine Translation of Rare Words with Subword Units](https://arxiv.org/abs/1508.07909).
 
-It is based on [fastBPE](https://github.com/glample/fastBPE) modified to expose similar functions working using input strings instead of files.
+It is based on [fastBPE](https://github.com/glample/fastBPE) modified to expose similar functions working using input strings instead of files and accessible from a simple python interface.
 
 More specifically exposes the following functions:
 
+```python
+# creates a vocab file sorted by frequency, one word per line
+create_vocab_file(text: Text, output_path: Text) -> None
+
+# Creates a BPE codes file 
+create_bpe_file(text: Text, n_codes: int, output_path: Text) -> None
+
+# Given a string and the codes and vocab file paths applies the BPE encoding
+apply_bpe(text: Text, codes_path: Text, vocab_path: Text) -> Text
+```
+
+
+
+Alternatively it is also possible to obtain a compiled executable from the C++ code, exposing similar functions:
+
 ```bash
-# getvocabs:
-./fast getvocabs "this is a sample simple test test"
-# Equivalent to:
+# getvocab from an input string
+./fast getvocabs "this test is a simple sample test"
+# equivalent to:
 echo "this is a sample simple test test" | ./fast getvocab -
 
-# learnbpes
-./fast learnbpes 10 "this is a sample simple test test"
-# Equivalent to:
+# test learnbpe
+./fast learnbpes 10 "this test is a simple sample test"
+# equivalent to:
 echo "this is a sample simple test test" | ./fast learnbpe 10 -
+
+# apply bpe with OOV words (i.e.: simplest, example)
+# with 'codes', 'vocab', 'input' and 'ouput' all being file paths to text files
+./fast applybpes "this is the simplest example" codes vocab
+# equivalent to:
+./fast applybpe out input codes vocab
 ```
 
-From python:
 
-```python
-import libpybpe as bpe
-
-text = "this test is a simple sample test"
-
-# get_vocabs: equivalent to getvocab
-vocab = bpe.get_vocabs(text)
-print(vocab)
-{'This': 1, 'a': 1, 'is': 1, 'sentence': 1, 'test': 3, 'to': 1}
-
-# to write to file:
-v = sorted(vocab.items(), key=lambda x: x[1], reverse=True)
-with open('vocab', 'w') as f:
-    for tup in v:
-        f.write("{} {}\n".format(*tup))
-
-# learn_bpes: equivalent to learnbpe
-codes = bpe.learn_bpes(5, text)
-
-# to write to file:
-with open('codes', 'w') as f:
-    for tup in codes:
-        f.write("{} {} {}\n".format(*tup))
-```
 
 ## Requirements
 
@@ -56,7 +52,7 @@ with open('codes', 'w') as f:
 
 ## How to
 
-### C++
+### As a C++ executable
 
 To compile the code without the python wrapper:
 
@@ -65,9 +61,9 @@ To compile the code without the python wrapper:
     g++ -std=c++11 -pthread -O3 fast.cpp -o fast
 ```
 
-### Python
+### As a Python wrapper
 
-1. Download and install Boost
+1. Download and **install Boost**:
    (Here we assume we are using Anaconda in an environment called `testDL` with python 3.6)
 
 ```bash
@@ -92,11 +88,12 @@ To compile the code without the python wrapper:
     sudo ./b2 install
 ```
 
-2. Clone the repo and compile
+2. Clone the repository and compile:
 
 ```bash
-    git XXXX
-    cd XXXX
+    export PYTHON_INCLUDE=~/anaconda3/envs/testDL/include/python3.6/
+    git clone https://github.com/jmrf/pyBPE
+    cd pyBPE
     mkdir build
     cd build
     cmake ..
@@ -115,12 +112,10 @@ If a warning appears when running: `....libstdc++.so.6: versionGLIBCXX_3.4.21' n
 
 ## misc
 
--   additional information on
-    [building python - c++ wrappers with Boost](https://www.preney.ca/paul/archives/107)
+-   additional information on [building python - c++ wrappers with Boost](https://www.preney.ca/paul/archives/107)
 
 -   [Boost](http://www.boost.org/users/history/version_1_64_0.html)
 
 -   [c++ online shell](http://cpp.sh/) or [c++ online compiler](https://rextester.com/l/cpp_online_compiler_gcc)
 
--   [String search benchmarks](https://almondtools.github.io/stringbench/chart.html#latest)
-    from [almondtools github repo](https://github.com/almondtools/stringbench)
+-   [String search benchmarks](https://almondtools.github.io/stringbench/chart.html#latest) from [almondtools github repo](https://github.com/almondtools/stringbench)
