@@ -1,26 +1,49 @@
 # fastBPE python wrapper
 
-This repo it is based on [fastBPE](https://github.com/glample/fastBPE) modified to expose similar function working using input strings instead of files.
+This is Python wrapper for a C++ implementation of:
+[Neural Machine Translation of Rare Words with Subword Units](https://arxiv.org/abs/1508.07909).
 
-More specifically exposes the following funtions:
+It is based on [fastBPE](https://github.com/glample/fastBPE) modified to expose similar functions working using input strings instead of files.
+
+More specifically exposes the following functions:
+
+```bash
+# getvocabs:
+./fast getvocabs "this is a sample simple test test"
+# Equivalent to:
+echo "this is a sample simple test test" | ./fast getvocab -
+
+# learnbpes
+./fast learnbpes 10 "this is a sample simple test test"
+# Equivalent to:
+echo "this is a sample simple test test" | ./fast learnbpe 10 -
+```
+
+From python:
 
 ```python
 import libpybpe as bpe
 
-text = "This is a test sentence to test test"
+text = "this test is a simple sample test"
 
 # get_vocabs: equivalent to getvocab
-print(bpe.get_vocabs(text))
-{'This': 1, 'a': 1, 'is': 1,
- 'sentence': 1, 'test': 3, 'to': 1}
+vocab = bpe.get_vocabs(text)
+print(vocab)
+{'This': 1, 'a': 1, 'is': 1, 'sentence': 1, 'test': 3, 'to': 1}
 
-# learn_bpe: equivalent to learnbpe
-print(bpe.learn_bpes(5, text))
-[('t', 'e', 4),
- ('s', 't</w>', 3),
- ('te', 'st</w>', 3),
- ('i', 's</w>', 2),
- ('t', 'o</w>', 1)]
+# to write to file:
+v = sorted(vocab.items(), key=lambda x: x[1], reverse=True)
+with open('vocab', 'w') as f:
+    for tup in v:
+        f.write("{} {}\n".format(*tup))
+
+# learn_bpes: equivalent to learnbpe
+codes = bpe.learn_bpes(5, text)
+
+# to write to file:
+with open('codes', 'w') as f:
+    for tup in codes:
+        f.write("{} {} {}\n".format(*tup))
 ```
 
 ## Requirements

@@ -19,10 +19,27 @@
 
 using namespace std;
 
-typedef vector< tuple<string, uint32_t> > wCounts;
-typedef unordered_map<string, uint32_t> wMapCounts;
-typedef tuple<string, string, uint32_t> triplet;
-typedef vector< triplet > tripletVec;
+
+struct pair_hash {
+  template <class T1, class T2> size_t operator()(const pair<T1, T2> &p) const {
+    auto h1 = hash<T1>{}(p.first);
+    auto h2 = hash<T2>{}(p.second);
+    size_t seed = h1;
+    // boost::hash_combine
+    return h2 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+  }
+};
+
+using tp = pair<uint32_t, uint32_t>;
+using tps = pair<string, string>;
+using pc = unordered_map<tp, pair<int32_t, tp> *, pair_hash>;
+
+using wCounts = vector<tuple<string, uint32_t>>;
+using wMapCounts = unordered_map<string, uint32_t>;
+using triplet = tuple<string, string, uint32_t>;
+using tripletVec = vector< triplet >;
+
+
 
 const size_t kMaxPairs = 1000 * 1000 * 1000;
 const size_t kThreads = max(1, min(10, int(thread::hardware_concurrency())));
@@ -45,7 +62,7 @@ void printUsage() {
 
 void print_word_count(const wCounts &wc) {
   fprintf(stderr, "\nWord Counts\n");
-  fprintf(stderr, "\n--------------\n");
+  fprintf(stderr, "--------------\n");
   for (wCounts::const_iterator i = wc.begin(); i != wc.end(); ++i) {
         cout << get<0>(*i) << " " << get<1>(*i) << endl;
   }
@@ -54,11 +71,16 @@ void print_word_count(const wCounts &wc) {
 
 void print_word_map_count(const wMapCounts &wmc) {
   fprintf(stderr, "\nWord Counts\n");
-  fprintf(stderr, "\n--------------\n");
+  fprintf(stderr, "--------------\n");
   for (auto x: wmc) {
     cout << x.first << " " << x.second << endl;
   }
-  fprintf(stderr, "\n--------------\n");
+  fprintf(stderr, "--------------\n");
+}
+
+void padText(string &text) {
+  int l = text.length();
+  if (text[l] != ' ' or text[l] != '\n') text.push_back('\n');
 }
 
 int safeOpen(const char *file_path, int flags, mode_t mode = 0) {
@@ -135,7 +157,6 @@ void readString(const string &text, wMapCounts &word_count) {
   for (int i = 0; i < text.length() ; i++) {
     deal_with_char(text[i]);
   }
-  deal_with_char(' ');  // here just to make sure the last word is appended
 
   fprintf(stderr, "Read %lu words (%lu unique) from string.\n", total,
           word_count.size());
@@ -174,6 +195,40 @@ std::pair<size_t, uint64_t> output_or_count(
   return std::make_pair(charOut, total);
 }
 
+string outputString(const string &text, unordered_map<string, string> &bpe) {
+  string outputStr = "";
+  string cur_word;
+  size_t charOut = 0;
+  uint64_t total = 0;
+  for (size_t i = 0; i < text.length(); i++) {
+    auto &cur_char = text[i];
+    if (cur_char == ' ' || cur_char == '\n') {
+      // we reached a word boundary
+      if (cur_word.size() == 0) {
+        outputStr.push_back(cur_char);
+        charOut++;
+        continue;
+      }
+      // end of word : write bpe to output
+      auto it = bpe.find(cur_word);
+      assert(it != bpe.end());
+      for (auto x : it->second) {
+        outputStr.push_back(x);
+        charOut++;
+      }
+      outputStr.push_back(cur_char);
+      charOut++;
+
+      total++;
+      cur_word.clear();
+    } else {
+      // append the current character as part of the current word
+      cur_word.push_back(cur_char);
+    }
+  }
+  return outputStr;
+}
+
 void outputText(const char *fpo, const char *fp,
                 unordered_map<string, string> &bpe) {
 
@@ -196,7 +251,6 @@ void outputText(const char *fpo, const char *fp,
     exit(EXIT_FAILURE);
   }
 
-
   char *fo = (char *)mmap(NULL, out_size, PROT_WRITE, MAP_SHARED, fdOut, 0);
   if (fo == MAP_FAILED) {
     fprintf(stderr, "Output memory map failed : %d.\n", errno);
@@ -209,16 +263,6 @@ void outputText(const char *fpo, const char *fp,
   close(fdOut);
   close(fd);
 }
-
-struct pair_hash {
-  template <class T1, class T2> size_t operator()(const pair<T1, T2> &p) const {
-    auto h1 = hash<T1>{}(p.first);
-    auto h2 = hash<T2>{}(p.second);
-    size_t seed = h1;
-    // boost::hash_combine
-    return h2 + 0x9e3779b9 + (seed << 6) + (seed >> 2);
-  }
-};
 
 void tokenize(const wMapCounts &word_count,
               wMapCounts &token_to_int,
@@ -283,9 +327,6 @@ void tokenize_str(const wMapCounts &word_count,
   }
 }
 
-using tp = pair<uint32_t, uint32_t>;
-using tps = pair<string, string>;
-using pc = unordered_map<tp, pair<int32_t, tp> *, pair_hash>;
 
 void count_in_word(
     list<uint32_t> &word, uint32_t wi, uint32_t count, pc &pair_counts,
@@ -355,7 +396,9 @@ void getvocab(const char *inputFile1, const char *inputFile2) {
 }
 
 
-wMapCounts getvocabs(const string &text) {
+wMapCounts getvocabs(string &text) {
+  // append space char at the end to
+  padText(text);
   // get vocab
   wMapCounts word_count;
   readString(text, word_count);
@@ -481,7 +524,7 @@ void learnbpe(const uint32_t kNPairs, const char *inputFile1,
   _learnbpe(kNPairs, word_count, true);
 }
 
-tripletVec learnbpes(const uint32_t kNPairs, const string text) {
+tripletVec learnbpes(const uint32_t kNPairs, string &text) {
   wMapCounts word_count = getvocabs(text);
   tripletVec codes = _learnbpe(kNPairs, word_count);
   return codes;
@@ -658,8 +701,9 @@ string process_bpe(vector<string> &subwords,
       );
 }
 
-void applybpe(const char *outputFile, const char *inputFile,
-              const char *codesPath, const char *vocabPath) {
+unordered_map<string, string> _applybpe(const wMapCounts &word_count,
+                                        const char *codesPath,
+                                        const char *vocabPath) {
   // read vocabulary (to which we want to limit the output file)
   wMapCounts vocab;
   if (vocabPath != "") {
@@ -670,10 +714,6 @@ void applybpe(const char *outputFile, const char *inputFile,
   unordered_map<tps, uint32_t, pair_hash> codes;
   unordered_map<string, tps> reversed_codes;
   readCodes(codesPath, codes, reversed_codes);
-
-  // read input file words
-  wMapCounts word_count;
-  readText(inputFile, word_count);
 
   // tokenize
   unordered_map<string, vector<string>> bpeTok;
@@ -706,6 +746,29 @@ void applybpe(const char *outputFile, const char *inputFile,
       final_bpe[x.first] = x.second;
     }
   }
+  return final_bpe;
+}
+
+string applybpes(string &text, const char *codesPath, const char *vocabPath){
+  // pad the input string
+  padText(text);
+  // read input file words
+  wMapCounts word_count;
+  readString(text, word_count);
+  // apply BPE
+  auto final_bpe = _applybpe(word_count, codesPath, vocabPath);
+  // output
+  return outputString(text, final_bpe);
+}
+
+void applybpe(const char *outputFile, const char *inputFile,
+              const char *codesPath, const char *vocabPath) {
+
+  // read input file words
+  wMapCounts word_count;
+  readText(inputFile, word_count);
+  // apply BPE
+  auto final_bpe = _applybpe(word_count, codesPath, vocabPath);
   // output
   outputText(outputFile, inputFile, final_bpe);
 }
@@ -719,7 +782,8 @@ void applybpe(const char *outputFile, const char *inputFile,
 namespace py = boost::python;       // this will allow to pass list between C++ and python
 
 py::dict get_vocabs(const string &text) {
-  wMapCounts word_count = getvocabs(text);
+  string text_ = text; // make a copy that can be modified
+  wMapCounts word_count = getvocabs(text_);
   py::dict map;
   for (auto x: word_count) {
     map[x.first] = x.second;
@@ -728,12 +792,20 @@ py::dict get_vocabs(const string &text) {
 }
 
 py::list learn_bpes(const uint32_t kNPairs, const string &text) {
-  tripletVec codes = learnbpes(kNPairs, text);
+  string text_ = text; // make a copy that can be modified
+  tripletVec codes = learnbpes(kNPairs, text_);
   py::list pycodes;
   for (tripletVec::const_iterator i = codes.begin(); i != codes.end(); ++i) {
     pycodes.append(py::make_tuple(get<0>(*i), get<1>(*i), get<2>(*i)));
   }
   return pycodes;
+}
+
+string apply_bpes(const string &text, const string codesPath, const string vocabPath) {
+  string text_ = text; // make a copy that can be modified
+  const char * codes = codesPath.c_str();
+  const char * vocab = vocabPath.c_str();
+  return applybpes(text_, codes, vocab);
 }
 
 BOOST_PYTHON_MODULE(libpybpe) {
@@ -743,6 +815,7 @@ BOOST_PYTHON_MODULE(libpybpe) {
     // Expose the functions.
     def("get_vocabs", get_vocabs);
     def("learn_bpes", learn_bpes);
+    def("apply_bpes", apply_bpes);
 }
 
 
@@ -757,9 +830,8 @@ int main(int argc, char **argv) {
   if (command == "getvocabs") {
     // get vocab from string
     assert(argc == 3);
-    // wCounts c = getvocabs(argv[2]);
-    // print_word_count(c);
-    wMapCounts c = getvocabs(argv[2]);
+    string text = argv[2];
+    wMapCounts c = getvocabs(text);
     print_word_map_count(c);
   }
   else if (command == "getvocab") {
@@ -770,13 +842,21 @@ int main(int argc, char **argv) {
   else if (command == "learnbpes") {
     // learn BPE code from string
     assert(argc == 4);
-    tripletVec codes = learnbpes(stoi(argv[2]), argv[3]);
+    int k = stoi(argv[2]);
+    string text = argv[3];
+    tripletVec codes = learnbpes(k, text);
     for (tripletVec::const_iterator i = codes.begin(); i != codes.end(); ++i)
         cout << get<0>(*i) << " " << get<1>(*i) << " " << get<2>(*i) << endl;
   }
   else if (command == "learnbpe") {
     assert(argc == 4 || argc == 5);
     learnbpe(stoi(argv[2]), argv[3], argc == 5 ? argv[4] : "");
+  }
+  else if (command == "applybpes") {
+    assert(argc == 5);
+    string text = argv[2];
+    string res = applybpes(text, argv[3], argv[4]);
+    cout << "input after applyng BPEs: " << res << endl;
   }
   else if (command == "applybpe") {
     assert(argc == 5 || argc == 6);
