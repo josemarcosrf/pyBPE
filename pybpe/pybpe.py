@@ -46,8 +46,7 @@ class pyBPE:
     @staticmethod
     def apply_bpe(text: Text, codes_path: Text, vocab_path: Text) -> Text:
         try:
-            return bpe.apply_bpes("this is the simplest example",
-                                  codes_path, vocab_path)
+            return bpe.apply_bpes(text, codes_path, vocab_path)
         except Exception as e:
             logger.error("Unknown error while applying BPE codes file: {}".format(e))
             logger.exception(e)
