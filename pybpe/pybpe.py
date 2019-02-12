@@ -14,6 +14,14 @@ coloredlogs.install(level='INFO',
 class pyBPE:
 
     @staticmethod
+    def get_vocab(text: Text) -> List[Tuple[Text, int]]:
+        return bpe.get_vocabs(text)
+
+    @staticmethod
+    def get_bpe_codes(text: Text, n_codes: int) -> List[Tuple[Text, Text, int]]:
+        return bpe.learn_bpes(n_codes, text)
+
+    @staticmethod
     def create_vocab_file(text: Text, output_path: Text) -> None:
         try:
             vocab = bpe.get_vocabs(text)
