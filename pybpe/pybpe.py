@@ -1,15 +1,19 @@
-import libpybpe as bpe
+import os
+import sys
 import typing
 import logging
 import coloredlogs
 
-from typing import Text, List, Tuple
+from typing import Text, List, Tuple, Dict
+
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+import libpybpe as bpe
 
 logger = logging.getLogger(__name__)
 coloredlogs.install(level='INFO',
                     logger=logger,
                     fmt='%(asctime)s %(levelname)-8s %(name)s  - %(message)s')
-
 
 class pyBPE:
 
@@ -24,7 +28,16 @@ class pyBPE:
     @staticmethod
     def get_bpe_codes(text: Text, n_codes: int) -> List[Tuple[Text, Text, int]]:
         try:
-            return bpe.learn_bpes(n_codes, text)
+            codes = bpe.learn_bpes(n_codes, text)
+            # for sufficiently enough large values of 'n_codes'
+            # 'learn_bpes' can return codes with count = 0
+            # in those cases we filter the result before returning
+            try:
+                lim = [c[2] for c in codes].index(0)
+                return codes[:lim]
+            except ValueError:
+                return codes
+
         except Exception as e:
             logger.error("Unknown error while computing BPE codes: {}".format(e))
             logger.exception(e)
@@ -48,7 +61,7 @@ class pyBPE:
             logger.exception(e)
 
     @staticmethod
-    def write_vocab_file(vocab: List[Tuple[Text, int]],
+    def write_vocab_file(vocab: Dict[Text, int],
                          output_path: Text) -> None:
         try:
             # write to file sorted by frequency
