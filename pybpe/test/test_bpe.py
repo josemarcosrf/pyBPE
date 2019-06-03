@@ -3,6 +3,25 @@ import os
 
 
 @pytest.mark.parametrize('vocab_file', ['/tmp/vocab'])
+def test_read_vocab(bpe, vocab_file):
+    vocab = bpe.read_vocab_file(vocab_file)
+    print("Vocab from file: {}".format(vocab))
+    assert all(isinstance(k, str) for k in vocab.keys())
+    assert all(isinstance(v, int) for v in vocab.values())
+
+
+@pytest.mark.parametrize('codes_file', ['/tmp/codes'])
+def test_read_codes(bpe, codes_file):
+    codes, reverse_codes = bpe.read_bpe_file(codes_file)
+    print("Codes: {}".format(codes))
+    print("Reverse codes: {}".format(reverse_codes))
+    assert all(isinstance(k, tuple) for k in codes.keys())
+    assert all(isinstance(v, int) for v in codes.values())
+    assert all(isinstance(k, str) for k in reverse_codes.keys())
+    assert all(isinstance(v, tuple) for v in reverse_codes.values())
+
+
+@pytest.mark.parametrize('vocab_file', ['/tmp/vocab'])
 def test_vocab(bpe, train_text, vocab, vocab_file):
     bpe.create_vocab_file(train_text, vocab_file)
     with open(vocab_file, 'r') as f:

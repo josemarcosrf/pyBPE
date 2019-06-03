@@ -1,6 +1,9 @@
 build/
 .pytest_cache/
 __pycache__/
+.hypothesis/
+.vscode/
+.cache/
 
 *.pyc
 *.o

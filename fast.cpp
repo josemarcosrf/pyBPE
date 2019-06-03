@@ -761,6 +761,21 @@ string applybpes(string &text, const char *codesPath, const char *vocabPath){
   return outputString(text, final_bpe);
 }
 
+// string applybpes(string &text,
+//                  const unordered_map<tps, uint32_t, pair_hash> &codes,
+//                  const wMapCounts &vocab)
+// {
+//   // pad the input string
+//   padText(text);
+//   // read input file words
+//   wMapCounts word_count;
+//   readString(text, word_count);
+//   // apply BPE
+//   auto final_bpe = _applybpe(word_count, codes, vocab);
+//   // output
+//   return outputString(text, final_bpe);
+// }
+
 void applybpe(const char *outputFile, const char *inputFile,
               const char *codesPath, const char *vocabPath) {
 
@@ -779,7 +794,52 @@ void applybpe(const char *outputFile, const char *inputFile,
     macro Boost.Python provides to signify a Python extension module
 */
 #include <boost/python.hpp>
-namespace py = boost::python;       // this will allow to pass list between C++ and python
+
+// this will allow to pass list between C++ and python
+namespace py = boost::python;
+
+
+py::dict read_vocab_file(const string vocabPath)
+{
+  const char *vocabFile = vocabPath.c_str();
+  wMapCounts vocab;
+  if (vocabPath != "") {
+    readVocab(vocabFile, vocab);
+  }
+  py::dict vocabDict;
+  for (auto x : vocab) {
+    vocabDict[x.first] = x.second;
+  }
+  return vocabDict;
+}
+
+py::list read_codes_file(const string codesPath)
+{
+  const char *codesFile = codesPath.c_str();
+  unordered_map<tps, uint32_t, pair_hash> codes;
+  unordered_map<string, tps> reversed_codes;
+  if (codesPath != "") {
+    readCodes(codesFile, codes, reversed_codes);
+  }
+
+  py::dict codes_dict;
+  for (auto x : codes) {
+    // cout << get<0>(x.first)
+    //      << "," << get<1>(x.first) << " --> " << x.second << endl;
+    codes_dict[py::make_tuple(get<0>(x.first), get<1>(x.first))] = x.second;
+  }
+  py::dict reverse_codes_dict;
+  for (auto x : reversed_codes) {
+    // cout << x.first << " --> "
+    //      << get<0>(x.second) << "," << get<1>(x.second) << endl;
+    reverse_codes_dict[x.first] =
+      py::make_tuple(get<0>(x.second), get<1>(x.second));
+  }
+  py::list code_maps;
+  code_maps.append(codes_dict);
+  code_maps.append(reverse_codes_dict);
+  return code_maps;
+}
 
 py::dict get_vocabs(const string &text) {
   string text_ = text; // make a copy that can be modified
@@ -801,7 +861,8 @@ py::list learn_bpes(const uint32_t kNPairs, const string &text) {
   return pycodes;
 }
 
-string apply_bpes(const string &text, const string codesPath, const string vocabPath) {
+string apply_bpes(const string &text,
+                  const string codesPath, const string vocabPath) {
   string text_ = text; // make a copy that can be modified
   const char * codes = codesPath.c_str();
   const char * vocab = vocabPath.c_str();
@@ -813,6 +874,8 @@ BOOST_PYTHON_MODULE(libpybpe) {
     using namespace boost::python;
 
     // Expose the functions.
+    def("read_vocab_file", read_vocab_file);
+    def("read_codes_file", read_codes_file);
     def("get_vocabs", get_vocabs);
     def("learn_bpes", learn_bpes);
     def("apply_bpes", apply_bpes);

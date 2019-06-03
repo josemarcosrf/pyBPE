@@ -15,6 +15,7 @@ coloredlogs.install(level='INFO',
                     logger=logger,
                     fmt='%(asctime)s %(levelname)-8s %(name)s  - %(message)s')
 
+
 class pyBPE:
 
     @staticmethod
@@ -51,6 +52,15 @@ class pyBPE:
     def create_bpe_file(text: Text, n_codes: int, output_path: Text) -> None:
         codes = pyBPE.get_bpe_codes(text, n_codes)
         pyBPE.write_codes_file(codes, output_path)
+
+    @staticmethod
+    def read_vocab_file(vocab_path: Text) -> Dict:
+        return bpe.read_vocab_file(vocab_path)
+
+    @staticmethod
+    def read_bpe_file(codes_path: Text) -> Tuple[Dict, Dict]:
+        codes, reverse_codes = bpe.read_codes_file(codes_path)
+        return codes, reverse_codes
 
     @staticmethod
     def apply_bpe(text: Text, codes_path: Text, vocab_path: Text) -> Text:
