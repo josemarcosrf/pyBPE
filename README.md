@@ -23,6 +23,7 @@ pyBPE.create_bpe_file(text: Text, n_codes: int, output_path: Text) -> None
 
 # Given a string and the codes and vocab file paths applies the BPE encoding
 bpe = pyBPE(codes_path: Text, vocab_path: Text)
+bpe.load()
 bpe.apply_bpe(text: Text) -> Text
 ```
 

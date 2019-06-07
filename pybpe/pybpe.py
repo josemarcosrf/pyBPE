@@ -43,7 +43,7 @@ class pyBPE:
 
     def apply_bpe(self, text: Text) -> Text:
         if self.vocab is None or self.codes is None:
-            raise ValueError("Vocab and Codes need to first be loaded")
+            raise ValueError("Vocab and Codes not loaded. Call load()")
         try:
             return bpe.apply_bpe(text, self.codes, self.vocab)
         except Exception as e:
