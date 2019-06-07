@@ -36,5 +36,5 @@ def output():
 
 
 @pytest.fixture
-def bpe():
+def BPE():
     return pyBPE

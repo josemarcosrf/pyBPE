@@ -3,24 +3,32 @@
 This is Python wrapper for a C++ implementation to produce BPE codes as explained in:
 [Neural Machine Translation of Rare Words with Subword Units](https://arxiv.org/abs/1508.07909).
 
-It is based on [fastBPE](https://github.com/glample/fastBPE) modified to expose similar functions working using input strings instead of files and accessible from a simple python interface.
+At the moment all C++ code resides in one file and is quite a mess but
+kind of works for what is intended... A better packaging should be coming soon.
+
+It is based on [fastBPE](https://github.com/glample/fastBPE)
+modified to expose similar functions working using input strings
+instead of files and accessible from a simple python interface.
 
 More specifically exposes the following functions:
 
 ```python
-# creates a vocab file sorted by frequency, one word per line
-create_vocab_file(text: Text, output_path: Text) -> None
+from pypbe import pyBPE
 
-# Creates a BPE codes file 
-create_bpe_file(text: Text, n_codes: int, output_path: Text) -> None
+# creates a vocab file sorted by frequency, one word per line
+pyBPE.create_vocab_file(text: Text, output_path: Text) -> None
+
+# Creates a BPE codes file
+pyBPE.create_bpe_file(text: Text, n_codes: int, output_path: Text) -> None
 
 # Given a string and the codes and vocab file paths applies the BPE encoding
-apply_bpe(text: Text, codes_path: Text, vocab_path: Text) -> Text
+bpe = pyBPE(codes_path: Text, vocab_path: Text)
+bpe.apply_bpe(text: Text) -> Text
 ```
 
 
-
-Alternatively it is also possible to obtain a compiled executable from the C++ code, exposing similar functions:
+Alternatively it is also possible to obtain a compiled executable from the C++
+code, exposing similar functions:
 
 ```bash
 # getvocab from an input string
@@ -35,7 +43,7 @@ echo "this is a sample simple test test" | ./fast learnbpe 10 -
 
 # apply bpe with OOV words (i.e.: simplest, example)
 # with 'codes', 'vocab', 'input' and 'ouput' all being file paths to text files
-./fast applybpes "this is the simplest example" codes vocab
+./fast apply_bpe_from_files "this is the simplest example" codes vocab
 # equivalent to:
 ./fast applybpe out input codes vocab
 ```
@@ -104,7 +112,9 @@ To compile the code without the python wrapper:
 
 ## Troubleshooting
 
-If a warning appears when running: `....libstdc++.so.6: versionGLIBCXX_3.4.21' not found...` you might need to install `libgcc`
+If a warning appears when running:
+`....libstdc++.so.6: versionGLIBCXX_3.4.21' not found...`
+you might need to install `libgcc`
 
 ```bash
     conda install libgcc
@@ -118,4 +128,8 @@ If a warning appears when running: `....libstdc++.so.6: versionGLIBCXX_3.4.21' n
 
 -   [c++ online shell](http://cpp.sh/) or [c++ online compiler](https://rextester.com/l/cpp_online_compiler_gcc)
 
--   [String search benchmarks](https://almondtools.github.io/stringbench/chart.html#latest) from [almondtools github repo](https://github.com/almondtools/stringbench)
+-   [Interfacing c++ with python](https://flanusse.net/interfacing-c++-with-python.html)
+
+-   [Boost <> Python object converters](https://sixty-north.com/blog/how-to-write-boost-python-type-converters.html)
+
+-   [c++ pair to python](https://stackoverflow.com/questions/16497889/how-to-expose-stdpair-to-python-using-boostpython)

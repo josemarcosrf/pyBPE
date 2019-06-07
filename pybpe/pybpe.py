@@ -18,8 +18,58 @@ coloredlogs.install(level='INFO',
 
 class pyBPE:
 
+    def __init__(self, vocab_path=None, codes_path=None):
+        self.vocab_path = vocab_path
+        self.codes_path = codes_path
+
+    def read_vocab_file(self) -> Dict:
+        if self.vocab_path is None:
+            raise ValueError("Vocab need to first be loaded")
+        return bpe.read_vocab_file(self.vocab_path)
+
+    def read_bpe_file(self) -> Tuple[Dict, Dict]:
+        if self.codes_path is None:
+            raise ValueError("Codes need to first be loaded")
+        codes, reverse_codes = bpe.read_codes_file(self.codes_path)
+        return codes, reverse_codes
+
+    def load(self):
+        try:
+            self.vocab = self.read_vocab_file()
+            self.codes, _ = self.read_bpe_file()
+        except Exception as e:
+            logger.error("Error loading BPE codes and vocab!")
+            logger.exception(e)
+
+    def apply_bpe(self, text: Text) -> Text:
+        if self.vocab is None or self.codes is None:
+            raise ValueError("Vocab and Codes need to first be loaded")
+        try:
+            return bpe.apply_bpe(text, self.codes, self.vocab)
+        except Exception as e:
+            logger.error("Unknown error "
+                         "while applying BPE codes: {}".format(e))
+            logger.exception(e)
+
+    def apply_bpe_from_files(text, codes_file, vocab_file):
+        try:
+            return bpe.apply_bpe_from_files(text, codes_file, vocab_file)
+        except Exception as e:
+            logger.error("Unknown error "
+                         "while applying BPE codes: {}".format(e))
+            logger.exception(e)
+
     @staticmethod
-    def get_vocab(text: Text) -> List[Tuple[Text, int]]:
+    def create_vocab_file(text: Text, output_path: Text) -> None:
+        vocab = pyBPE._learn_vocab(text)
+        pyBPE._write_vocab_file(vocab, output_path)
+
+    @staticmethod
+    def create_bpe_file(text: Text, n_codes: int, output_path: Text) -> None:
+        codes = pyBPE._learn_bpe_codes(text, n_codes)
+        pyBPE._write_codes_file(codes, output_path)
+
+    def _learn_vocab(text: Text) -> List[Tuple[Text, int]]:
         try:
             return bpe.get_vocabs(text)
         except Exception as e:
@@ -27,7 +77,8 @@ class pyBPE:
             logger.exception(e)
 
     @staticmethod
-    def get_bpe_codes(text: Text, n_codes: int) -> List[Tuple[Text, Text, int]]:
+    def _learn_bpe_codes(text: Text,
+                         n_codes: int) -> List[Tuple[Text, Text, int]]:
         try:
             codes = bpe.learn_bpes(n_codes, text)
             # for sufficiently enough large values of 'n_codes'
@@ -40,39 +91,13 @@ class pyBPE:
                 return codes
 
         except Exception as e:
-            logger.error("Unknown error while computing BPE codes: {}".format(e))
+            logger.error("Unknown error "
+                         "while computing BPE codes: {}".format(e))
             logger.exception(e)
 
     @staticmethod
-    def create_vocab_file(text: Text, output_path: Text) -> None:
-        vocab = pyBPE.get_vocab(text)
-        pyBPE.write_vocab_file(vocab, output_path)
-
-    @staticmethod
-    def create_bpe_file(text: Text, n_codes: int, output_path: Text) -> None:
-        codes = pyBPE.get_bpe_codes(text, n_codes)
-        pyBPE.write_codes_file(codes, output_path)
-
-    @staticmethod
-    def read_vocab_file(vocab_path: Text) -> Dict:
-        return bpe.read_vocab_file(vocab_path)
-
-    @staticmethod
-    def read_bpe_file(codes_path: Text) -> Tuple[Dict, Dict]:
-        codes, reverse_codes = bpe.read_codes_file(codes_path)
-        return codes, reverse_codes
-
-    @staticmethod
-    def apply_bpe(text: Text, codes_path: Text, vocab_path: Text) -> Text:
-        try:
-            return bpe.apply_bpes(text, codes_path, vocab_path)
-        except Exception as e:
-            logger.error("Unknown error while applying BPE codes file: {}".format(e))
-            logger.exception(e)
-
-    @staticmethod
-    def write_vocab_file(vocab: Dict[Text, int],
-                         output_path: Text) -> None:
+    def _write_vocab_file(vocab: Dict[Text, int],
+                          output_path: Text) -> None:
         try:
             # write to file sorted by frequency
             v = sorted(vocab.items(), key=lambda x: x[1], reverse=True)
@@ -81,12 +106,13 @@ class pyBPE:
                     f.write("{} {}\n".format(*tup))
 
         except Exception as e:
-            logger.error("Unknown error while creating vocab file: {}".format(e))
+            logger.error("Unknown error "
+                         "while creating vocab file: {}".format(e))
             logger.exception(e)
 
     @staticmethod
-    def write_codes_file(codes: List[Tuple[Text, Text, int]],
-                         output_path: Text) -> None:
+    def _write_codes_file(codes: List[Tuple[Text, Text, int]],
+                          output_path: Text) -> None:
         try:
             # write to file
             with open(output_path, 'w') as f:
@@ -94,5 +120,6 @@ class pyBPE:
                     f.write("{} {} {}\n".format(*tup))
 
         except Exception as e:
-            logger.error("Unknown error while creating BPE codes file: {}".format(e))
+            logger.error("Unknown error while "
+                         "creating BPE codes file: {}".format(e))
             logger.exception(e)

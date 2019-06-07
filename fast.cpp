@@ -16,6 +16,16 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <tuple>
+
+/*
+    Required to expose the functions.
+    macro Boost.Python provides to signify a Python extension module
+*/
+#include <boost/python.hpp>
+
+// this will allow to pass objects between C++ and python
+namespace py = boost::python;
 
 using namespace std;
 
@@ -39,7 +49,8 @@ using wMapCounts = unordered_map<string, uint32_t>;
 using triplet = tuple<string, string, uint32_t>;
 using tripletVec = vector< triplet >;
 
-
+using codesMap = unordered_map<tps, uint32_t, pair_hash>;
+using reverseCodesMap = unordered_map<string, tps>;
 
 const size_t kMaxPairs = 1000 * 1000 * 1000;
 const size_t kThreads = max(1, min(10, int(thread::hardware_concurrency())));
@@ -563,8 +574,8 @@ void readVocab(const char *fp, wMapCounts &vocab) {
           vocab.size());
 }
 
-void readCodes(const char *fp, unordered_map<tps, uint32_t, pair_hash> &codes,
-               unordered_map<string, tps> &reversed_codes) {
+void readCodes(const char *fp, codesMap &codes,
+               reverseCodesMap &reversed_codes) {
   ifstream file(fp);
   if (!file) {
     fprintf(stderr, "Cannot open codes file %s\n", fp);
@@ -587,7 +598,7 @@ void readCodes(const char *fp, unordered_map<tps, uint32_t, pair_hash> &codes,
 }
 
 void decompose(const string s, vector<string> &newSubwords,
-               const unordered_map<string, tps> &reversed_codes,
+               const reverseCodesMap &reversed_codes,
                const wMapCounts &vocab, bool isFinal) {
   auto it = reversed_codes.find(s);
   if (it == reversed_codes.end()) {
@@ -624,7 +635,7 @@ void decompose(const string s, vector<string> &newSubwords,
 }
 
 void limitVocab(const vector<string> &subwords, vector<string> &newSubwords,
-                const unordered_map<string, tps> &reversed_codes,
+                const reverseCodesMap &reversed_codes,
                 const wMapCounts &vocab) {
   string query;
   for (int i = 0; i < subwords.size(); i++) {
@@ -644,8 +655,8 @@ void limitVocab(const vector<string> &subwords, vector<string> &newSubwords,
 }
 
 string process_bpe(vector<string> &subwords,
-                   unordered_map<tps, uint32_t, pair_hash> &codes,
-                   unordered_map<string, tps> &reversed_codes,
+                   codesMap &codes,
+                   reverseCodesMap &reversed_codes,
                    wMapCounts &vocab) {
   // merge subWords as much as possible
   vector<string> newSubwords;
@@ -701,36 +712,30 @@ string process_bpe(vector<string> &subwords,
       );
 }
 
-unordered_map<string, string> _applybpe(const wMapCounts &word_count,
-                                        const char *codesPath,
-                                        const char *vocabPath) {
-  // read vocabulary (to which we want to limit the output file)
-  wMapCounts vocab;
-  if (vocabPath != "") {
-    readVocab(vocabPath, vocab);
-  }
-
-  // read codes
-  unordered_map<tps, uint32_t, pair_hash> codes;
-  unordered_map<string, tps> reversed_codes;
-  readCodes(codesPath, codes, reversed_codes);
-
+unordered_map<string, string> _buildbpes(
+    wMapCounts &word_count,
+    wMapCounts &vocab,
+    codesMap &codes,
+    reverseCodesMap &reversed_codes)
+{
   // tokenize
   unordered_map<string, vector<string>> bpeTok;
   tokenize_str(word_count, bpeTok);
 
   vector<pair<string, vector<string>>> bpeTokVec;
-  for (auto x : bpeTok) {
+  for (auto x : bpeTok)
+  {
     bpeTokVec.push_back(x);
   }
-
   // apply BPE codes to each word
   unordered_map<string, string> bpe[kThreads];
   vector<thread> threads;
-  for (size_t i = 0; i < kThreads; i++) {
+  for (size_t i = 0; i < kThreads; i++)
+  {
     threads.emplace_back(
         [&](size_t this_thread) {
-          for (size_t w = this_thread; w < bpeTokVec.size(); w += kThreads) {
+          for (size_t w = this_thread; w < bpeTokVec.size(); w += kThreads)
+          {
             auto &x = bpeTokVec[w];
             bpe[this_thread][x.first] =
                 process_bpe(x.second, codes, reversed_codes, vocab);
@@ -738,76 +743,114 @@ unordered_map<string, string> _applybpe(const wMapCounts &word_count,
         },
         i);
   }
-
+  // build final BPE codes
   unordered_map<string, string> final_bpe;
-  for (size_t i = 0; i < kThreads; i++) {
+  for (size_t i = 0; i < kThreads; i++)
+  {
     threads[i].join();
-    for (auto x : bpe[i]) {
+    for (auto x : bpe[i])
+    {
       final_bpe[x.first] = x.second;
     }
   }
   return final_bpe;
 }
 
-string applybpes(string &text, const char *codesPath, const char *vocabPath){
-  // pad the input string
-  padText(text);
-  // read input file words
-  wMapCounts word_count;
-  readString(text, word_count);
-  // apply BPE
-  auto final_bpe = _applybpe(word_count, codesPath, vocabPath);
-  // output
-  return outputString(text, final_bpe);
+unordered_map<string, string> _applybpe_from_files(wMapCounts &word_count,
+                                                   const char *codesPath,
+                                                   const char *vocabPath) {
+  // read vocabulary (to which we want to limit the output file)
+  wMapCounts vocab;
+  if (vocabPath != "") {
+    readVocab(vocabPath, vocab);
+  }
+  // read codes
+  codesMap codes;
+  reverseCodesMap reversed_codes;
+  readCodes(codesPath, codes, reversed_codes);
+  // apply BPE function
+  return _buildbpes(word_count, vocab, codes, reversed_codes);
 }
 
-// string applybpes(string &text,
-//                  const unordered_map<tps, uint32_t, pair_hash> &codes,
-//                  const wMapCounts &vocab)
-// {
-//   // pad the input string
-//   padText(text);
-//   // read input file words
-//   wMapCounts word_count;
-//   readString(text, word_count);
-//   // apply BPE
-//   auto final_bpe = _applybpe(word_count, codes, vocab);
-//   // output
-//   return outputString(text, final_bpe);
-// }
+unordered_map<string, string> _applybpe(
+  wMapCounts &word_count,
+  const tuple<codesMap, reverseCodesMap> &codes_tup,
+  wMapCounts &vocab)
+{
+  // read codes
+  codesMap codes = get<0>(codes_tup);
+  reverseCodesMap reversed_codes = get<1>(codes_tup);
+  // apply BPE function
+  return _buildbpes(word_count, vocab, codes, reversed_codes);
+}
 
 void applybpe(const char *outputFile, const char *inputFile,
               const char *codesPath, const char *vocabPath) {
-
   // read input file words
   wMapCounts word_count;
   readText(inputFile, word_count);
   // apply BPE
-  auto final_bpe = _applybpe(word_count, codesPath, vocabPath);
+  auto final_bpe = _applybpe_from_files(word_count, codesPath, vocabPath);
   // output
   outputText(outputFile, inputFile, final_bpe);
 }
 
+// ============================================================================
+// ======================= pyBPE functions ====================================
+// ============================================================================
 
-/*
-    Required to expose the functions.
-    macro Boost.Python provides to signify a Python extension module
-*/
-#include <boost/python.hpp>
+// =================== Aux functions =====================
 
-// this will allow to pass list between C++ and python
-namespace py = boost::python;
+wMapCounts convert_pyvocab_to_mapwc(py::dict &py_vocab)
+{
+  // data structures for word counts
+  wMapCounts word_count;
 
+  py::list keys = py_vocab.keys();
+  for (int i = 0; i < len(keys); ++i)
+  {
+    string k = py::extract<string>(keys[i]);
+    int v = py::extract<uint32_t>(py_vocab[k]);
+    cout << k << "-->" << v << endl;
+    word_count[k] = v;
+  }
+  return word_count;
+}
+
+tuple<codesMap, reverseCodesMap>
+convert_pycodes_to_mapcodes(py::dict &py_codes)
+{
+  // data structures for codes
+  codesMap codes;
+  reverseCodesMap reversed_codes;
+
+  py::list keys = py_codes.keys();
+  for (int i = 0; i < len(keys); ++i)
+  {
+    string s1 = py::extract<string>(keys[i][0]);
+    string s2 = py::extract<string>(keys[i][1]);
+    tps k = make_pair(s1, s2);
+    int v = py::extract<uint32_t>(py_codes[keys[i]]);
+    codes[k] = v;
+    reversed_codes[s1 + s2] = k;
+  }
+  return make_tuple(codes, reversed_codes);
+}
+
+
+// ===================== exposed functions ========================
 
 py::dict read_vocab_file(const string vocabPath)
 {
   const char *vocabFile = vocabPath.c_str();
   wMapCounts vocab;
-  if (vocabPath != "") {
+  if (vocabPath != "")
+  {
     readVocab(vocabFile, vocab);
   }
   py::dict vocabDict;
-  for (auto x : vocab) {
+  for (auto x : vocab)
+  {
     vocabDict[x.first] = x.second;
   }
   return vocabDict;
@@ -816,24 +859,26 @@ py::dict read_vocab_file(const string vocabPath)
 py::list read_codes_file(const string codesPath)
 {
   const char *codesFile = codesPath.c_str();
-  unordered_map<tps, uint32_t, pair_hash> codes;
-  unordered_map<string, tps> reversed_codes;
-  if (codesPath != "") {
+  codesMap codes;
+  reverseCodesMap reversed_codes;
+  if (codesPath != "")
+  {
     readCodes(codesFile, codes, reversed_codes);
   }
-
   py::dict codes_dict;
-  for (auto x : codes) {
+  for (auto x : codes)
+  {
     // cout << get<0>(x.first)
     //      << "," << get<1>(x.first) << " --> " << x.second << endl;
     codes_dict[py::make_tuple(get<0>(x.first), get<1>(x.first))] = x.second;
   }
   py::dict reverse_codes_dict;
-  for (auto x : reversed_codes) {
+  for (auto x : reversed_codes)
+  {
     // cout << x.first << " --> "
     //      << get<0>(x.second) << "," << get<1>(x.second) << endl;
     reverse_codes_dict[x.first] =
-      py::make_tuple(get<0>(x.second), get<1>(x.second));
+        py::make_tuple(get<0>(x.second), get<1>(x.second));
   }
   py::list code_maps;
   code_maps.append(codes_dict);
@@ -841,46 +886,149 @@ py::list read_codes_file(const string codesPath)
   return code_maps;
 }
 
-py::dict get_vocabs(const string &text) {
+py::dict get_vocabs(const string &text)
+{
   string text_ = text; // make a copy that can be modified
   wMapCounts word_count = getvocabs(text_);
   py::dict map;
-  for (auto x: word_count) {
+  for (auto x : word_count)
+  {
     map[x.first] = x.second;
   }
   return map;
 }
 
-py::list learn_bpes(const uint32_t kNPairs, const string &text) {
+py::list learn_bpes(const uint32_t kNPairs, const string &text)
+{
   string text_ = text; // make a copy that can be modified
   tripletVec codes = learnbpes(kNPairs, text_);
   py::list pycodes;
-  for (tripletVec::const_iterator i = codes.begin(); i != codes.end(); ++i) {
+  for (tripletVec::const_iterator i = codes.begin(); i != codes.end(); ++i)
+  {
     pycodes.append(py::make_tuple(get<0>(*i), get<1>(*i), get<2>(*i)));
   }
   return pycodes;
 }
 
-string apply_bpes(const string &text,
-                  const string codesPath, const string vocabPath) {
+string apply_bpe(const string &text,
+                 py::dict &py_codes,
+                 py::dict &py_vocab)
+{
+  // pad the input string
   string text_ = text; // make a copy that can be modified
-  const char * codes = codesPath.c_str();
-  const char * vocab = vocabPath.c_str();
-  return applybpes(text_, codes, vocab);
+  padText(text_);
+  // read input text words
+  wMapCounts word_count;
+  readString(text_, word_count);
+
+  // trasnform pyObjects into C++ data structures
+  tuple<codesMap, reverseCodesMap> codes =
+    convert_pycodes_to_mapcodes(py_codes);
+  wMapCounts vocab = convert_pyvocab_to_mapwc(py_vocab);
+
+  // apply BPE
+  auto final_bpe = _applybpe(word_count, codes, vocab);
+  // output
+  return outputString(text_, final_bpe);
 }
 
-BOOST_PYTHON_MODULE(libpybpe) {
+string apply_bpe_from_files(const string &text,
+                            const string codesPath,
+                            const string vocabPath)
+{
+  // pad the input string
+  string text_ = text; // make a copy that can be modified
+  padText(text_);
+  // read input text words
+  wMapCounts word_count;
+  readString(text_, word_count);
+  // convert strings
+  const char * codes = codesPath.c_str();
+  const char * vocab = vocabPath.c_str();
+
+  // apply BPE
+  auto final_bpe = _applybpe_from_files(word_count, codes, vocab);
+  return outputString(text_, final_bpe);
+}
+
+
+// ============================================================================
+// ====================== Boost object converters =============================
+// ============================================================================
+
+template <typename T1, typename T2>
+struct PairToPythonConverter
+{
+  static PyObject *convert(const std::pair<T1, T2> &pair)
+  {
+    return py::incref(py::make_tuple(pair.first, pair.second).ptr());
+  }
+};
+
+template <typename T1, typename T2>
+struct PythonToPairConverter
+{
+  PythonToPairConverter()
+  {
+    py::converter::registry::push_back(
+        &convertible,
+        &construct,
+        py::type_id<std::pair<T1, T2>>());
+  }
+
+  static void *convertible(PyObject *obj)
+  {
+    if (!PyTuple_CheckExact(obj))
+      return 0;
+    if (PyTuple_Size(obj) != 2)
+      return 0;
+    return obj;
+  }
+
+  static void construct(PyObject *obj, py::converter::rvalue_from_python_stage1_data *data)
+  {
+    py::tuple tuple(py::borrowed(obj));
+    void *storage = ((py::converter::rvalue_from_python_storage<std::pair<T1, T2>> *)data)->storage.bytes;
+    new (storage) std::pair<T1, T2>(py::extract<T1>(tuple[0]), py::extract<T2>(tuple[1]));
+    data->convertible = storage;
+  }
+};
+
+template <typename T1, typename T2>
+struct py_pair
+{
+  py::to_python_converter<pair<T1, T2>, PairToPythonConverter<T1, T2>> toPy;
+  PythonToPairConverter<T1, T2> fromPy;
+};
+
+// ============================================================================
+// ========================== BOOST python module =============================
+// ============================================================================
+
+// TODO: Move all of this out of fast.cpp!!!
+BOOST_PYTHON_MODULE(libpybpe)
+  {
     // An established convention for using boost.python.
     using namespace boost::python;
 
+    // register the from-python converter
+    PythonToPairConverter<string, string>();
+
     // Expose the functions.
+    // def("pass_vocab_and_codes", pass_vocab_and_codes);
     def("read_vocab_file", read_vocab_file);
     def("read_codes_file", read_codes_file);
     def("get_vocabs", get_vocabs);
     def("learn_bpes", learn_bpes);
-    def("apply_bpes", apply_bpes);
+    def("apply_bpe", apply_bpe);
+    def("apply_bpe_from_files", apply_bpe_from_files);
 }
 
+
+
+// ============================================================================
+// ============================= MAIN entry point =============================
+// ============================================================================
 
 int main(int argc, char **argv) {
   if (argc < 2) {
@@ -915,12 +1063,12 @@ int main(int argc, char **argv) {
     assert(argc == 4 || argc == 5);
     learnbpe(stoi(argv[2]), argv[3], argc == 5 ? argv[4] : "");
   }
-  else if (command == "applybpes") {
-    assert(argc == 5);
-    string text = argv[2];
-    string res = applybpes(text, argv[3], argv[4]);
-    cout << "input after applyng BPEs: " << res << endl;
-  }
+  // else if (command == "applybpes") {
+  //   assert(argc == 5);
+  //   string text = argv[2];
+  //   string res = applybpes(text, argv[3], argv[4]);
+  //   cout << "input after applyng BPEs: " << res << endl;
+  // }
   else if (command == "applybpe") {
     assert(argc == 5 || argc == 6);
     applybpe(argv[2], argv[3], argv[4], argc == 6 ? argv[5] : "");
