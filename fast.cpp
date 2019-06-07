@@ -401,9 +401,9 @@ void getvocab(const char *inputFile1, const char *inputFile2) {
       word_count.begin(), word_count.end(), compFunctor);
   assert(word_count.size() == sorted_vocab.size());
 
-  // print sorted vocab
-  for (auto element : sorted_vocab)
-    cout << element.first << " " << element.second << endl;
+  // // print sorted vocab
+  // for (auto element : sorted_vocab)
+  //   cout << element.first << " " << element.second << endl;
 }
 
 
@@ -811,7 +811,6 @@ wMapCounts convert_pyvocab_to_mapwc(py::dict &py_vocab)
   {
     string k = py::extract<string>(keys[i]);
     int v = py::extract<uint32_t>(py_vocab[k]);
-    cout << k << "-->" << v << endl;
     word_count[k] = v;
   }
   return word_count;
