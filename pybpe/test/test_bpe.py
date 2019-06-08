@@ -1,5 +1,6 @@
 import pytest
 import os
+import time
 
 
 @pytest.mark.parametrize('vocab_file', ['/tmp/vocab'])
@@ -56,3 +57,31 @@ def test_bpe_from_python(BPE, output, test_text, vocab_file, codes_file):
     # assert res == output
     assert res == res_f
     assert res_f == output
+
+
+@pytest.mark.parametrize('vocab_file,codes_file', [
+    ('/tmp/vocab', '/tmp/codes')
+])
+def test_file_vs_mem_time(BPE, output, test_text, vocab_file, codes_file):
+    N = 1000
+    # check from file time
+    f_time = 0
+    for _ in range(N):
+        s = time.time()
+        BPE.apply_bpe_from_files(test_text, codes_file, vocab_file)
+        f_time += time.time() - s
+
+    # check time from memory
+    m_time = 0
+    start = time.time()
+    bpe = BPE(vocab_path=vocab_file, codes_path=codes_file)
+    bpe.load()
+    m_time += time.time() - start
+    for _ in range(N):
+        s = time.time()
+        bpe.apply_bpe(test_text)
+        m_time += time.time() - s
+
+    print("Time from-file: {:.4f} | from-mem: {:.4f}".format(f_time, m_time))
+    assert f_time > m_time
+
