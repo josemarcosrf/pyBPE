@@ -1,4 +1,6 @@
 # fastBPE python wrapper
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjmrf%2FpyBPE.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjmrf%2FpyBPE?ref=badge_shield)
+
 
 This is Python wrapper for a C++ implementation to produce BPE codes as explained in:
 [Neural Machine Translation of Rare Words with Subword Units](https://arxiv.org/abs/1508.07909).
@@ -134,3 +136,7 @@ you might need to install `libgcc`
 -   [Boost <> Python object converters](https://sixty-north.com/blog/how-to-write-boost-python-type-converters.html)
 
 -   [c++ pair to python](https://stackoverflow.com/questions/16497889/how-to-expose-stdpair-to-python-using-boostpython)
+
+
+## License
+[![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjmrf%2FpyBPE.svg?type=large)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjmrf%2FpyBPE?ref=badge_large)
