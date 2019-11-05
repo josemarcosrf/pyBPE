@@ -134,3 +134,8 @@ you might need to install `libgcc`
 -   [Boost <> Python object converters](https://sixty-north.com/blog/how-to-write-boost-python-type-converters.html)
 
 -   [c++ pair to python](https://stackoverflow.com/questions/16497889/how-to-expose-stdpair-to-python-using-boostpython)
+
+
+## License
+
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fjmrf%2FpyBPE.svg?type=shield)](https://app.fossa.com/projects/git%2Bgithub.com%2Fjmrf%2FpyBPE?ref=badge_shield)
