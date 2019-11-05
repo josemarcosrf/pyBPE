@@ -142,4 +142,4 @@ you might need to install `libgcc`
 
 ## License
 
-
+[![FOSSA Status](https://app.fossa.com/api/projects/git%2Bgithub.com%2Fjmrf%2FpyBPE.svg?type=large)](https://app.fossa.com/projects/git%2Bgithub.com%2Fjmrf%2FpyBPE?ref=badge_large)
